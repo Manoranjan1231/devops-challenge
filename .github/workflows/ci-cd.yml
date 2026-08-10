@@ -8,16 +8,20 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}-backend
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.meta.outputs.tag }}
+      image_name: ${{ steps.lowercase.outputs.image_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        id: lowercase
+        run: echo "image_name=$(echo '${{ github.repository }}-backend' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -51,8 +55,8 @@ jobs:
           context: app
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.image_name }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.image_name }}:latest
 
       - name: Build image locally (PR validation only, no push)
         if: github.event_name == 'pull_request'
@@ -77,7 +81,7 @@ jobs:
 
       - name: Substitute image tag into manifest
         run: |
-          sed -i "s|devops-challenge-backend:local|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-test.outputs.image_tag }}|" k8s/04-backend-deployment.yaml
+          sed -i "s|devops-challenge-backend:local|${{ env.REGISTRY }}/${{ needs.build-and-test.outputs.image_name }}:${{ needs.build-and-test.outputs.image_tag }}|" k8s/04-backend-deployment.yaml
 
       - name: Create image pull secret for GHCR
         run: |
